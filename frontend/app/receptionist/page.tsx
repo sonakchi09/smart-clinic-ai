@@ -15,7 +15,7 @@ export default function ReceptionistPage() {
     phone: ''
   });
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
+  const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -26,14 +26,14 @@ export default function ReceptionistPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setSuccess('');
+    setResult(null);
     try {
       const res = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/patients/register`,
         form,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setSuccess(`Patient registered! Token number: ${res.data.token}`);
+      setResult(res.data);
       setForm({ name: '', age: '', gender: '', symptoms: '', phone: '' });
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to register patient');
@@ -53,10 +53,7 @@ export default function ReceptionistPage() {
         <h1 className="text-lg font-semibold text-gray-800">Smart Clinic AI</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">Receptionist: {user?.name}</span>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-red-500 hover:text-red-700"
-          >
+          <button onClick={handleLogout} className="text-sm text-red-500 hover:text-red-700">
             Logout
           </button>
         </div>
@@ -65,11 +62,32 @@ export default function ReceptionistPage() {
       <div className="max-w-2xl mx-auto mt-10 px-4">
         <h2 className="text-xl font-semibold text-gray-800 mb-6">Register New Patient</h2>
 
-        {success && (
-          <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm font-medium">
-            {success}
+        {result && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6 flex items-start gap-6">
+            <div>
+              <p className="text-green-700 font-semibold text-lg mb-1">
+                Token #{result.token} Generated!
+              </p>
+              <p className="text-green-600 text-sm mb-1">
+                Patient: {result.patient.name}
+              </p>
+              <p className="text-green-600 text-sm mb-3">
+                Assigned Doctor: {result.patient.assignedDoctor?.name || 'To be assigned'}
+              </p>
+              <p className="text-gray-500 text-xs">
+                Patient can scan the QR code to track their queue status
+              </p>
+            </div>
+            {result.qrCode && (
+              <img
+                src={result.qrCode}
+                alt="Patient QR Code"
+                className="w-32 h-32 rounded-lg border border-green-200"
+              />
+            )}
           </div>
         )}
+
         {error && (
           <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-4 text-sm">
             {error}

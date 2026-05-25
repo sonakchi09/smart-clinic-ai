@@ -1,5 +1,6 @@
 const Patient = require('../models/Patient');
 const User = require('../models/User');
+const QRCode = require('qrcode');
 
 const registerPatient = async (req, res) => {
   try {
@@ -9,9 +10,9 @@ const registerPatient = async (req, res) => {
     const todayCount = await Patient.countDocuments({ date: todayStr });
     const tokenNumber = todayCount + 1;
 
-    const availableDoctors = await User.find({ 
-      role: 'doctor', 
-      isAvailable: true 
+    const availableDoctors = await User.find({
+      role: 'doctor',
+      isAvailable: true
     });
 
     let assignedDoctor = null;
@@ -44,10 +45,14 @@ const registerPatient = async (req, res) => {
 
     await patient.populate('assignedDoctor', 'name');
 
+    const patientPageUrl = `${process.env.FRONTEND_URL}/patient/${patient._id}`;
+    const qrCodeDataUrl = await QRCode.toDataURL(patientPageUrl);
+
     res.status(201).json({
       message: 'Patient registered successfully',
       token: tokenNumber,
-      patient
+      patient,
+      qrCode: qrCodeDataUrl
     });
   } catch (error) {
     console.log(error);
@@ -67,4 +72,29 @@ const getPatients = async (req, res) => {
   }
 };
 
-module.exports = { registerPatient, getPatients };
+const getPatientById = async (req, res) => {
+  try {
+    const patient = await Patient.findById(req.params.id)
+      .populate('assignedDoctor', 'name');
+    if (!patient) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const patientsAhead = await Patient.countDocuments({
+      date: todayStr,
+      assignedDoctor: patient.assignedDoctor,
+      status: 'waiting',
+      tokenNumber: { $lt: patient.tokenNumber }
+    });
+
+    const avgConsultationTime = 10;
+    const estimatedWait = patientsAhead * avgConsultationTime;
+
+    res.json({ patient, patientsAhead, estimatedWait });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { registerPatient, getPatients, getPatientById };
