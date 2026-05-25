@@ -97,4 +97,37 @@ const getPatientById = async (req, res) => {
   }
 };
 
-module.exports = { registerPatient, getPatients, getPatientById };
+
+const getDoctorPatients = async (req, res) => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const patients = await Patient.find({
+      assignedDoctor: req.user._id,
+      date: todayStr
+    }).sort({ tokenNumber: 1 });
+    res.json({ patients });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const updateConsultation = async (req, res) => {
+  try {
+    const { consultationNotes, prescription, status } = req.body;
+    const patient = await Patient.findByIdAndUpdate(
+      req.params.id,
+      { consultationNotes, prescription, status },
+      { new: true }
+    ).populate('assignedDoctor', 'name');
+
+    if (!patient) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
+    res.json({ message: 'Consultation updated', patient });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { registerPatient, getPatients, getPatientById, getDoctorPatients, updateConsultation };
