@@ -21,7 +21,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['admin', 'doctor', 'receptionist', 'patient'],
     required: true
-  }
+  },
+  isAvailable: {
+  type: Boolean,
+  default: true
+},
 }, { timestamps: true });
 
 userSchema.pre('save', async function() {
