@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { io, Socket } from 'socket.io-client';
 
 export default function DoctorPage() {
   const { token, user, logout } = useAuth();
@@ -10,9 +11,10 @@ export default function DoctorPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [form, setForm] = useState({ consultationNotes: '', prescription: '' });
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
+  const [newPatientAlert, setNewPatientAlert] = useState('');
+  const socketRef = useRef<Socket | null>(null);
 
   const fetchPatients = async () => {
     try {
@@ -27,8 +29,36 @@ export default function DoctorPage() {
   };
 
   useEffect(() => {
-    if (token) fetchPatients();
-  }, [token]);
+    if (!token || !user) return;
+
+    fetchPatients();
+
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
+      transports: ['websocket', 'polling']
+    });
+    socketRef.current = socket;
+
+    socket.emit('join-doctor-room', user.id);
+
+    socket.on('new-patient', ({ patient }) => {
+      setPatients((prev) => [...prev, patient]);
+      setNewPatientAlert(`New patient: ${patient.name} (Token #${patient.tokenNumber})`);
+      setTimeout(() => setNewPatientAlert(''), 5000);
+    });
+
+    socket.on('patient-updated', ({ patient }) => {
+      setPatients((prev) =>
+        prev.map((p) => (p._id === patient._id ? patient : p))
+      );
+      if (selectedPatient?._id === patient._id) {
+        setSelectedPatient(patient);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [token, user]);
 
   const openPatient = (patient: any) => {
     setSelectedPatient(patient);
@@ -90,16 +120,18 @@ export default function DoctorPage() {
         </div>
       </nav>
 
+      {newPatientAlert && (
+        <div className="bg-blue-600 text-white text-sm text-center py-2 font-medium">
+          🔔 {newPatientAlert}
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto mt-8 px-4 grid grid-cols-3 gap-6">
-        
-        {/* Patient Queue */}
+
         <div className="col-span-1">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-base font-semibold text-gray-800">Today's Queue</h2>
-            <button
-              onClick={fetchPatients}
-              className="text-xs text-blue-600 hover:text-blue-800"
-            >
+            <button onClick={fetchPatients} className="text-xs text-blue-600 hover:text-blue-800">
               Refresh
             </button>
           </div>
@@ -131,7 +163,6 @@ export default function DoctorPage() {
           )}
         </div>
 
-        {/* Consultation Panel */}
         <div className="col-span-2">
           {!selectedPatient ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
@@ -163,9 +194,7 @@ export default function DoctorPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Consultation Notes
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Notes</label>
                   <textarea
                     value={form.consultationNotes}
                     onChange={(e) => setForm({ ...form, consultationNotes: e.target.value })}
@@ -174,11 +203,8 @@ export default function DoctorPage() {
                     rows={4}
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Prescription
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prescription</label>
                   <textarea
                     value={form.prescription}
                     onChange={(e) => setForm({ ...form, prescription: e.target.value })}
@@ -187,7 +213,6 @@ export default function DoctorPage() {
                     rows={4}
                   />
                 </div>
-
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleSave('in-consultation')}

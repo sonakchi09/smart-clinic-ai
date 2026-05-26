@@ -2,12 +2,14 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useParams } from 'next/navigation';
+import { io } from 'socket.io-client';
 
 export default function PatientStatusPage() {
   const { id } = useParams();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [alert, setAlert] = useState('');
 
   const fetchStatus = async () => {
     try {
@@ -24,21 +26,43 @@ export default function PatientStatusPage() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
-    return () => clearInterval(interval);
+
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
+      transports: ['websocket', 'polling']
+    });
+
+    socket.emit('join-patient-room', id);
+
+    socket.on('status-update', ({ status, message }) => {
+      setAlert(message);
+      fetchStatus();
+    });
+
+    socket.on('your-turn', ({ message }) => {
+      setAlert(message);
+      fetchStatus();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [id]);
 
-  if (loading) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <p className="text-gray-500">Loading your token status...</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500">Loading your token status...</p>
+      </div>
+    );
+  }
 
-  if (error) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <p className="text-red-500">{error}</p>
-    </div>
-  );
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
+  }
 
   const { patient, patientsAhead, estimatedWait } = data;
 
@@ -49,7 +73,7 @@ export default function PatientStatusPage() {
   };
   const statusColor = statusColors[patient.status] || '';
 
-const statusLabels: Record<string, string> = {
+  const statusLabels: Record<string, string> = {
     waiting: 'Waiting',
     'in-consultation': 'In Consultation',
     done: 'Done'
@@ -63,6 +87,12 @@ const statusLabels: Record<string, string> = {
           <h1 className="text-2xl font-semibold text-gray-800">Smart Clinic AI</h1>
           <p className="text-gray-500 text-sm mt-1">Your token status</p>
         </div>
+
+        {alert && (
+          <div className="bg-blue-600 text-white text-sm text-center py-3 px-4 rounded-xl mb-6 font-medium">
+            🔔 {alert}
+          </div>
+        )}
 
         <div className="text-center mb-6">
           <div className="text-6xl font-bold text-blue-600 mb-2">
@@ -112,7 +142,7 @@ const statusLabels: Record<string, string> = {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          This page refreshes automatically every 30 seconds
+          Updates are live — no need to refresh
         </p>
       </div>
     </div>

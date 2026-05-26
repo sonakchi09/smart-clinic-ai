@@ -5,6 +5,7 @@ const QRCode = require('qrcode');
 const registerPatient = async (req, res) => {
   try {
     const { name, age, gender, phone, symptoms } = req.body;
+    const io = req.app.get('io');
 
     const todayStr = new Date().toISOString().split('T')[0];
     const todayCount = await Patient.countDocuments({ date: todayStr });
@@ -47,6 +48,14 @@ const registerPatient = async (req, res) => {
 
     const patientPageUrl = `${process.env.FRONTEND_URL}/patient/${patient._id}`;
     const qrCodeDataUrl = await QRCode.toDataURL(patientPageUrl);
+
+    if (assignedDoctor) {
+      io.to(`doctor-${assignedDoctor}`).emit('new-patient', {
+        patient: patient.toObject()
+      });
+    }
+
+    io.to('admin-room').emit('dashboard-update', { type: 'new-patient' });
 
     res.status(201).json({
       message: 'Patient registered successfully',
@@ -97,7 +106,6 @@ const getPatientById = async (req, res) => {
   }
 };
 
-
 const getDoctorPatients = async (req, res) => {
   try {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -114,6 +122,8 @@ const getDoctorPatients = async (req, res) => {
 const updateConsultation = async (req, res) => {
   try {
     const { consultationNotes, prescription, status } = req.body;
+    const io = req.app.get('io');
+
     const patient = await Patient.findByIdAndUpdate(
       req.params.id,
       { consultationNotes, prescription, status },
@@ -123,6 +133,35 @@ const updateConsultation = async (req, res) => {
     if (!patient) {
       return res.status(404).json({ message: 'Patient not found' });
     }
+
+    io.to(`patient-${patient._id}`).emit('status-update', {
+      status: patient.status,
+      message: status === 'done'
+        ? 'Your consultation is complete. Thank you!'
+        : 'Your consultation has started. Please proceed to the cabin.'
+    });
+
+    if (status === 'done') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const nextPatient = await Patient.findOne({
+        assignedDoctor: patient.assignedDoctor,
+        date: todayStr,
+        status: 'waiting',
+        tokenNumber: { $gt: patient.tokenNumber }
+      }).sort({ tokenNumber: 1 });
+
+      if (nextPatient) {
+        io.to(`patient-${nextPatient._id}`).emit('your-turn', {
+          message: 'Your turn is next! Please proceed to the doctor cabin.'
+        });
+      }
+
+      io.to('admin-room').emit('dashboard-update', { type: 'consultation-done' });
+    }
+
+    io.to(`doctor-${patient.assignedDoctor._id}`).emit('patient-updated', {
+      patient: patient.toObject()
+    });
 
     res.json({ message: 'Consultation updated', patient });
   } catch (error) {
