@@ -136,6 +136,14 @@ export default function DoctorPage() {
             </button>
           </div>
 
+          {patients.some(p => p.urgency === 'High' && p.status === 'waiting') && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-3">
+              <p className="text-red-700 text-xs font-medium">
+                🚨 High urgency patient(s) in queue — please attend immediately
+              </p>
+            </div>
+          )}
+
           {patients.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
               <p className="text-gray-400 text-sm">No patients assigned yet</p>
@@ -147,16 +155,37 @@ export default function DoctorPage() {
                   key={patient._id}
                   onClick={() => openPatient(patient)}
                   className={`bg-white rounded-xl border p-4 cursor-pointer transition hover:border-blue-300 ${
-                    selectedPatient?._id === patient._id ? 'border-blue-400 ring-1 ring-blue-300' : 'border-gray-100'
+                    selectedPatient?._id === patient._id ? 'border-blue-400 ring-1 ring-blue-300' :
+                    patient.urgency === 'High' ? 'border-red-300' : 'border-gray-100'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-blue-600 font-bold text-lg">#{patient.tokenNumber}</span>
-                    {statusBadge(patient.status)}
+                    <div className="flex gap-1">
+                      {patient.urgency === 'High' && (
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-red-50 text-red-700">
+                          🚨 High
+                        </span>
+                      )}
+                      {patient.urgency === 'Medium' && (
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-yellow-50 text-yellow-700">
+                          ⚠️ Medium
+                        </span>
+                      )}
+                      {patient.urgency === 'Low' && (
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-green-50 text-green-700">
+                          ✓ Low
+                        </span>
+                      )}
+                      {statusBadge(patient.status)}
+                    </div>
                   </div>
                   <p className="text-gray-800 font-medium text-sm">{patient.name}</p>
                   <p className="text-gray-500 text-xs mt-1">{patient.age} yrs • {patient.gender}</p>
                   <p className="text-gray-400 text-xs mt-1 truncate">{patient.symptoms}</p>
+                  {patient.suggestedDoctorType && (
+                    <p className="text-blue-400 text-xs mt-1">AI: {patient.suggestedDoctorType}</p>
+                  )}
                 </div>
               ))}
             </div>

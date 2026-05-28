@@ -1,6 +1,7 @@
 const Patient = require('../models/Patient');
 const User = require('../models/User');
 const QRCode = require('qrcode');
+const { suggestDoctor } = require('../services/aiService');
 
 const registerPatient = async (req, res) => {
   try {
@@ -11,25 +12,42 @@ const registerPatient = async (req, res) => {
     const todayCount = await Patient.countDocuments({ date: todayStr });
     const tokenNumber = todayCount + 1;
 
+    // AI triage FIRST
+    const aiTriage = await suggestDoctor(symptoms);
+
+    // THEN doctor assignment using aiTriage
     const availableDoctors = await User.find({
       role: 'doctor',
       isAvailable: true
     });
 
     let assignedDoctor = null;
+
     if (availableDoctors.length > 0) {
-      const doctorPatientCounts = await Promise.all(
-        availableDoctors.map(async (doc) => {
-          const count = await Patient.countDocuments({
-            assignedDoctor: doc._id,
-            date: todayStr,
-            status: { $ne: 'done' }
-          });
-          return { doctor: doc, count };
-        })
+      const getDoctorWithLeastPatients = async (doctors) => {
+        const counts = await Promise.all(
+          doctors.map(async (doc) => {
+            const count = await Patient.countDocuments({
+              assignedDoctor: doc._id,
+              date: todayStr,
+              status: { $ne: 'done' }
+            });
+            return { doctor: doc, count };
+          })
+        );
+        counts.sort((a, b) => a.count - b.count);
+        return counts[0].doctor._id;
+      };
+
+      const specialistDoctors = availableDoctors.filter(
+        doc => doc.specialization === aiTriage.doctorType
       );
-      doctorPatientCounts.sort((a, b) => a.count - b.count);
-      assignedDoctor = doctorPatientCounts[0].doctor._id;
+
+      if (specialistDoctors.length > 0) {
+        assignedDoctor = await getDoctorWithLeastPatients(specialistDoctors);
+      } else {
+        assignedDoctor = await getDoctorWithLeastPatients(availableDoctors);
+      }
     }
 
     const patient = await Patient.create({
@@ -39,6 +57,8 @@ const registerPatient = async (req, res) => {
       phone,
       symptoms,
       tokenNumber,
+      urgency: aiTriage.urgency,
+      suggestedDoctorType: aiTriage.doctorType,
       assignedDoctor,
       registeredBy: req.user._id,
       date: todayStr
@@ -112,7 +132,17 @@ const getDoctorPatients = async (req, res) => {
     const patients = await Patient.find({
       assignedDoctor: req.user._id,
       date: todayStr
-    }).sort({ tokenNumber: 1 });
+    });
+
+    const urgencyOrder = { High: 0, Medium: 1, Low: 2 };
+    patients.sort((a, b) => {
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (a.status !== 'done' && b.status === 'done') return -1;
+      const urgencyDiff = (urgencyOrder[a.urgency] ?? 1) - (urgencyOrder[b.urgency] ?? 1);
+      if (urgencyDiff !== 0) return urgencyDiff;
+      return a.tokenNumber - b.tokenNumber;
+    });
+
     res.json({ patients });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

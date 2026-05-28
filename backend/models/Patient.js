@@ -23,6 +23,15 @@ const patientSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  urgency: {
+    type: String,
+    enum: ['Low', 'Medium', 'High'],
+    default: 'Medium'
+  },
+  suggestedDoctorType: {
+    type: String,
+    default: ''
+  },
   tokenNumber: {
     type: Number
   },

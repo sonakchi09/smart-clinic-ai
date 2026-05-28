@@ -10,7 +10,7 @@ export default function AdminPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showAddDoctor, setShowAddDoctor] = useState(false);
-  const [doctorForm, setDoctorForm] = useState({ name: '', email: '', password: '' });
+  const [doctorForm, setDoctorForm] = useState({ name: '', email: '', password: '', specialization: 'General Physician' });
   const [addLoading, setAddLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -58,7 +58,7 @@ export default function AdminPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess('Doctor added successfully!');
-      setDoctorForm({ name: '', email: '', password: '' });
+      setDoctorForm({ name: '', email: '', password: '', specialization: 'General Physician' });
       setShowAddDoctor(false);
       fetchDashboard();
     } catch (err: any) {
@@ -86,7 +86,7 @@ export default function AdminPage() {
     );
   };
 
- if (loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-400">Loading dashboard...</p>
@@ -117,7 +117,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total Patients', value: data?.stats?.totalPatients, color: 'text-blue-600' },
@@ -132,7 +131,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Doctors Section */}
         <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-base font-semibold text-gray-800">Doctors</h2>
@@ -152,7 +150,7 @@ export default function AdminPage() {
                   {error}
                 </div>
               )}
-              <form onSubmit={handleAddDoctor} className="grid grid-cols-3 gap-4">
+              <form onSubmit={handleAddDoctor} className="grid grid-cols-2 gap-4">
                 <input
                   type="text"
                   placeholder="Full name"
@@ -177,10 +175,26 @@ export default function AdminPage() {
                   className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
+                <select
+                  value={doctorForm.specialization}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, specialization: e.target.value })}
+                  className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="General Physician">General Physician</option>
+                  <option value="Cardiologist">Cardiologist</option>
+                  <option value="Dermatologist">Dermatologist</option>
+                  <option value="Orthopedic">Orthopedic</option>
+                  <option value="ENT Specialist">ENT Specialist</option>
+                  <option value="Neurologist">Neurologist</option>
+                  <option value="Gastroenterologist">Gastroenterologist</option>
+                  <option value="Pediatrician">Pediatrician</option>
+                  <option value="Gynecologist">Gynecologist</option>
+                  <option value="Psychiatrist">Psychiatrist</option>
+                </select>
                 <button
                   type="submit"
                   disabled={addLoading}
-                  className="col-span-3 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                  className="col-span-2 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
                 >
                   {addLoading ? 'Adding...' : 'Add Doctor'}
                 </button>
@@ -195,6 +209,7 @@ export default function AdminPage() {
                   <div>
                     <p className="font-medium text-gray-800">{doc.name}</p>
                     <p className="text-xs text-gray-400">{doc.email}</p>
+                    <p className="text-xs text-blue-500">{doc.specialization || 'General Physician'}</p>
                   </div>
                   <button
                     onClick={() => handleToggle(doc._id)}
@@ -222,7 +237,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Today's Patients */}
         <div>
           <h2 className="text-base font-semibold text-gray-800 mb-4">Today's Patients</h2>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

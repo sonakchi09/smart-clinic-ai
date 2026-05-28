@@ -51,19 +51,25 @@ const getDashboardStats = async (req, res) => {
 
 const addDoctor = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, specialization } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Doctor already exists' });
     }
 
-    const user = new User({ name, email, password, role: 'doctor' });
+    const user = new User({ 
+      name, 
+      email, 
+      password, 
+      role: 'doctor',
+      specialization: specialization || 'General Physician'
+    });
     await user.save();
 
     res.status(201).json({
       message: 'Doctor added successfully',
-      doctor: { id: user._id, name: user.name, email: user.email }
+      doctor: { id: user._id, name: user.name, email: user.email, specialization: user.specialization }
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

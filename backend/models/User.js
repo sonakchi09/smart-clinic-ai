@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema({
   type: Boolean,
   default: true
 },
+specialization: {
+  type: String,
+  default: 'General Physician'
+},
 }, { timestamps: true });
 
 userSchema.pre('save', async function() {
