@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -17,9 +17,39 @@ export default function ReceptionistPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const typingTimer = useRef<any>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+
+    if (name === 'symptoms') {
+      clearTimeout(typingTimer.current);
+      setAiSuggestion(null);
+      if (value.length > 10) {
+        typingTimer.current = setTimeout(() => {
+          fetchAiSuggestion(value);
+        }, 1000);
+      }
+    }
+  };
+
+  const fetchAiSuggestion = async (symptoms: string) => {
+    setAiLoading(true);
+    try {
+      const res = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/ai/suggest-doctor`,
+        { symptoms },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAiSuggestion(res.data.suggestion);
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +65,7 @@ export default function ReceptionistPage() {
       );
       setResult(res.data);
       setForm({ name: '', age: '', gender: '', symptoms: '', phone: '' });
+      setAiSuggestion(null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to register patient');
     } finally {
@@ -42,9 +73,10 @@ export default function ReceptionistPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const urgencyColor: Record<string, string> = {
+    Low: 'bg-green-50 text-green-700 border-green-200',
+    Medium: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    High: 'bg-red-50 text-red-700 border-red-200'
   };
 
   return (
@@ -53,7 +85,10 @@ export default function ReceptionistPage() {
         <h1 className="text-lg font-semibold text-gray-800">Smart Clinic AI</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">Receptionist: {user?.name}</span>
-          <button onClick={handleLogout} className="text-sm text-red-500 hover:text-red-700">
+          <button
+            onClick={() => { logout(); router.push('/login'); }}
+            className="text-sm text-red-500 hover:text-red-700"
+          >
             Logout
           </button>
         </div>
@@ -68,9 +103,7 @@ export default function ReceptionistPage() {
               <p className="text-green-700 font-semibold text-lg mb-1">
                 Token #{result.token} Generated!
               </p>
-              <p className="text-green-600 text-sm mb-1">
-                Patient: {result.patient.name}
-              </p>
+              <p className="text-green-600 text-sm mb-1">Patient: {result.patient.name}</p>
               <p className="text-green-600 text-sm mb-3">
                 Assigned Doctor: {result.patient.assignedDoctor?.name || 'To be assigned'}
               </p>
@@ -160,10 +193,28 @@ export default function ReceptionistPage() {
                 value={form.symptoms}
                 onChange={handleChange}
                 className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Describe symptoms..."
+                placeholder="Describe symptoms... AI will suggest the right doctor"
                 rows={3}
                 required
               />
+
+              {aiLoading && (
+                <p className="text-xs text-blue-500 mt-2">AI is analyzing symptoms...</p>
+              )}
+
+              {aiSuggestion && !aiLoading && (
+                <div className={`mt-3 border rounded-xl p-4 ${urgencyColor[aiSuggestion.urgency]}`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-sm font-semibold">
+                      AI Suggests: {aiSuggestion.doctorType}
+                    </p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${urgencyColor[aiSuggestion.urgency]}`}>
+                      {aiSuggestion.urgency} Urgency
+                    </span>
+                  </div>
+                  <p className="text-xs mt-1 opacity-80">{aiSuggestion.reason}</p>
+                </div>
+              )}
             </div>
 
             <button
