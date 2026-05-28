@@ -21,6 +21,8 @@ const [transcript, setTranscript] = useState('');
 const [transcribing, setTranscribing] = useState(false);
 const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 const audioChunksRef = useRef<Blob[]>([]);
+const [aiSummary, setAiSummary] = useState('');
+const [summaryLoading, setSummaryLoading] = useState(false);
 
 const startRecording = async () => {
   try {
@@ -136,14 +138,34 @@ const sendAudioForTranscription = async () => {
     };
   }, [token, user]);
 
-  const openPatient = (patient: any) => {
-    setSelectedPatient(patient);
-    setForm({
-      consultationNotes: patient.consultationNotes || '',
-      prescription: patient.prescription || ''
-    });
-    setSuccess('');
-  };
+ const openPatient = (patient: any) => {
+  setSelectedPatient(patient);
+  setForm({
+    consultationNotes: patient.consultationNotes || '',
+    prescription: patient.prescription || ''
+  });
+  setSuccess('');
+  setAiSummary('');
+  setTranscript('');
+  setAudioBlob(null);
+  fetchAiSummary(patient);
+};
+  const fetchAiSummary = async (patient: any) => {
+  setSummaryLoading(true);
+  setAiSummary('');
+  try {
+    const res = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/ai/pre-consultation`,
+      { patient },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    setAiSummary(res.data.summary);
+  } catch (err) {
+    console.log(err);
+  } finally {
+    setSummaryLoading(false);
+  }
+};
 
   const handleSave = async (status: string) => {
     setSaving(true);
@@ -286,10 +308,21 @@ const sendAudioForTranscription = async () => {
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                <p className="text-xs font-medium text-gray-500 mb-1">Reported Symptoms</p>
-                <p className="text-gray-800 text-sm">{selectedPatient.symptoms}</p>
-              </div>
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+  <p className="text-xs font-medium text-gray-500 mb-1">Reported Symptoms</p>
+  <p className="text-gray-800 text-sm">{selectedPatient.symptoms}</p>
+</div>
+
+<div className="bg-purple-50 border border-purple-100 rounded-xl p-4 mb-6">
+  <p className="text-xs font-medium text-purple-600 mb-2">🤖 AI Pre-Consultation Summary</p>
+  {summaryLoading ? (
+    <p className="text-xs text-purple-400 animate-pulse">Generating clinical summary...</p>
+  ) : aiSummary ? (
+    <p className="text-sm text-purple-800 leading-relaxed">{aiSummary}</p>
+  ) : (
+    <p className="text-xs text-purple-400">Summary will appear here</p>
+  )}
+</div>
 
               {success && (
                 <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm font-medium">
