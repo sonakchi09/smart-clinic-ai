@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const { suggestDoctor, generatePreConsultationSummary, generateDashboardInsights, structurePrescription } = require('../services/aiService');
+const multer = require('multer');
+const { transcribeAudio } = require('../services/aiService');
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/suggest-doctor', protect, authorizeRoles('receptionist'), async (req, res) => {
   try {
@@ -44,6 +47,26 @@ router.post('/structure-prescription', protect, authorizeRoles('doctor'), async 
     res.json({ structured });
   } catch (error) {
     res.status(500).json({ message: 'AI service error', error: error.message });
+  }
+});
+
+router.post('/transcribe', protect, authorizeRoles('doctor'), upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No audio file provided' });
+    }
+
+    const transcript = await transcribeAudio(req.file.buffer, req.file.mimetype);
+
+    if (!transcript) {
+      return res.status(500).json({ message: 'Transcription failed' });
+    }
+
+    const structured = await structurePrescription(transcript);
+
+    res.json({ transcript, structured });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

@@ -141,9 +141,40 @@ Respond in this exact JSON format only, no extra text, no markdown:
   }
 };
 
+const transcribeAudio = async (audioBuffer, mimeType) => {
+  try {
+    const FormData = require('form-data');
+    const fetch = require('node-fetch');
+
+    const formData = new FormData();
+    formData.append('file', audioBuffer, {
+      filename: 'recording.webm',
+      contentType: mimeType || 'audio/webm'
+    });
+    formData.append('model', 'whisper-large-v3');
+    formData.append('response_format', 'json');
+
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        ...formData.getHeaders()
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    return data.text || '';
+  } catch (error) {
+    console.log('Transcription error:', error.message);
+    return '';
+  }
+};
+
 module.exports = {
   suggestDoctor,
   generatePreConsultationSummary,
   generateDashboardInsights,
-  structurePrescription
+  structurePrescription,
+  transcribeAudio
 };

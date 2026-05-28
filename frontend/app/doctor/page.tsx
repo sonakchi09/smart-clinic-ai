@@ -15,6 +15,82 @@ export default function DoctorPage() {
   const [success, setSuccess] = useState('');
   const [newPatientAlert, setNewPatientAlert] = useState('');
   const socketRef = useRef<Socket | null>(null);
+  const [recording, setRecording] = useState(false);
+const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+const [transcript, setTranscript] = useState('');
+const [transcribing, setTranscribing] = useState(false);
+const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+const audioChunksRef = useRef<Blob[]>([]);
+
+const startRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mediaRecorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = mediaRecorder;
+    audioChunksRef.current = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        audioChunksRef.current.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      setAudioBlob(blob);
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    mediaRecorder.start();
+    setRecording(true);
+    setTranscript('');
+    setAudioBlob(null);
+  } catch (err) {
+    console.log('Microphone error:', err);
+    alert('Could not access microphone. Please allow microphone permission.');
+  }
+};
+
+const stopRecording = () => {
+  if (mediaRecorderRef.current && recording) {
+    mediaRecorderRef.current.stop();
+    setRecording(false);
+  }
+};
+const sendAudioForTranscription = async () => {
+  if (!audioBlob) return;
+  setTranscribing(true);
+  try {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+
+    const res = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/ai/transcribe`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+
+    const { transcript: text, structured } = res.data;
+    setTranscript(text);
+
+    if (structured) {
+      setForm({
+        consultationNotes: structured.diagnosis + '\n\nInstructions: ' + structured.instructions,
+        prescription: structured.medicines + '\n\nFollow-up: ' + structured.followUp
+      });
+    }
+  } catch (err) {
+    console.log('Transcription error:', err);
+    alert('Transcription failed. Please try again.');
+  } finally {
+    setTranscribing(false);
+  }
+};
 
   const fetchPatients = async () => {
     try {
@@ -221,44 +297,57 @@ export default function DoctorPage() {
                 </div>
               )}
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Notes</label>
-                  <textarea
-                    value={form.consultationNotes}
-                    onChange={(e) => setForm({ ...form, consultationNotes: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter diagnosis and notes..."
-                    rows={4}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prescription</label>
-                  <textarea
-                    value={form.prescription}
-                    onChange={(e) => setForm({ ...form, prescription: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter medicines, dosage, instructions..."
-                    rows={4}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleSave('in-consultation')}
-                    disabled={saving || selectedPatient.status === 'done'}
-                    className="flex-1 border border-blue-500 text-blue-600 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-50 transition disabled:opacity-50"
-                  >
-                    {saving ? 'Saving...' : 'Save Notes'}
-                  </button>
-                  <button
-                    onClick={() => handleSave('done')}
-                    disabled={saving || selectedPatient.status === 'done'}
-                    className="flex-1 bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition disabled:opacity-50"
-                  >
-                    {saving ? 'Saving...' : 'Mark as Done ✓'}
-                  </button>
-                </div>
-              </div>
+             <div className="bg-gray-50 rounded-xl p-4">
+  <p className="text-xs font-medium text-gray-500 mb-3">Voice to Prescription</p>
+  <div className="flex items-center gap-3">
+    {!recording ? (
+      <button
+        onClick={startRecording}
+        disabled={selectedPatient?.status === 'done'}
+        className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition disabled:opacity-50"
+      >
+        🎤 Start Recording
+      </button>
+    ) : (
+      <button
+        onClick={stopRecording}
+        className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition animate-pulse"
+      >
+        ⏹ Stop Recording
+      </button>
+    )}
+    {recording && (
+      <span className="text-red-500 text-xs font-medium animate-pulse">
+        Recording...
+      </span>
+    )}
+    {audioBlob && !recording && (
+      <span className="text-green-600 text-xs font-medium">
+        ✓ Audio captured — ready to transcribe
+      </span>
+    )}
+  </div>
+
+  {audioBlob && !recording && (
+    <div className="mt-3">
+      <audio controls src={URL.createObjectURL(audioBlob)} className="w-full h-8" />
+      <button
+        onClick={sendAudioForTranscription}
+        disabled={transcribing}
+        className="mt-2 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
+      >
+        {transcribing ? 'Transcribing...' : 'Transcribe & Fill Form'}
+      </button>
+    </div>
+  )}
+
+  {transcript && (
+    <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3">
+      <p className="text-xs font-medium text-gray-500 mb-1">Transcript:</p>
+      <p className="text-sm text-gray-700">{transcript}</p>
+    </div>
+  )}
+</div>
             </div>
           )}
         </div>
