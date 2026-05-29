@@ -26,26 +26,19 @@ export default function PatientStatusPage() {
 
   useEffect(() => {
     fetchStatus();
-
     const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
       transports: ['websocket', 'polling']
     });
-
     socket.emit('join-patient-room', id);
-
-    socket.on('status-update', ({ status, message }) => {
+    socket.on('status-update', ({ message }) => {
       setAlert(message);
       fetchStatus();
     });
-
     socket.on('your-turn', ({ message }) => {
       setAlert(message);
       fetchStatus();
     });
-
-    return () => {
-      socket.disconnect();
-    };
+    return () => { socket.disconnect(); };
   }, [id]);
 
   if (loading) {
@@ -126,7 +119,15 @@ export default function PatientStatusPage() {
 
         {patient.status === 'done' && (
           <div className="bg-green-50 rounded-xl p-4 text-center mb-6">
-            <p className="text-green-700 font-medium">Consultation complete. Thank you for visiting!</p>
+            <p className="text-green-700 font-medium mb-3">Consultation complete. Thank you for visiting!</p>
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL}/api/patients/${patient._id}/prescription-pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition"
+            >
+              📄 Download Prescription PDF
+            </a>
           </div>
         )}
 
