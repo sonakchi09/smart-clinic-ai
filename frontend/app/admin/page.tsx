@@ -116,7 +116,12 @@ export default function AdminPage() {
             {success}
           </div>
         )}
-
+        {data?.insights && (
+  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+    <p className="text-xs font-medium text-blue-600 mb-2">🤖 AI Daily Insights</p>
+    <p className="text-sm text-blue-800 leading-relaxed">{data.insights}</p>
+  </div>
+)}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total Patients', value: data?.stats?.totalPatients, color: 'text-blue-600' },
