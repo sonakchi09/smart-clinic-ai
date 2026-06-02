@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Patient = require('../models/Patient');
+const { generateDashboardInsights } = require('../services/aiService');
 
 const getDashboardStats = async (req, res) => {
   try {
@@ -39,11 +40,21 @@ const getDashboardStats = async (req, res) => {
       .populate('assignedDoctor', 'name')
       .sort({ tokenNumber: 1 });
 
-    res.json({
-      stats: { totalPatients, waiting, inConsultation, done, totalDoctors, availableDoctors },
-      doctorStats,
-      patients
-    });
+    const insights = await generateDashboardInsights({
+  totalPatients,
+  waiting,
+  inConsultation,
+  done,
+  totalDoctors,
+  availableDoctors
+});
+
+res.json({
+  stats: { totalPatients, waiting, inConsultation, done, totalDoctors, availableDoctors },
+  doctorStats,
+  patients,
+  insights
+});
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -95,4 +106,23 @@ const toggleDoctorAvailability = async (req, res) => {
   }
 };
 
-module.exports = { getDashboardStats, addDoctor, toggleDoctorAvailability };
+const reassignPatient = async (req, res) => {
+  try {
+    const { doctorId } = req.body;
+    const patient = await Patient.findByIdAndUpdate(
+      req.params.id,
+      { assignedDoctor: doctorId },
+      { new: true }
+    ).populate('assignedDoctor', 'name');
+
+    if (!patient) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
+    res.json({ message: 'Patient reassigned successfully', patient });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { getDashboardStats, addDoctor, toggleDoctorAvailability,reassignPatient };
