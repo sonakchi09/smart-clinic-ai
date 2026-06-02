@@ -20,7 +20,14 @@ const io = new Server(server, {
   }
 });
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+    'https://smart-clinic-ai-icju.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 app.set('io', io);
