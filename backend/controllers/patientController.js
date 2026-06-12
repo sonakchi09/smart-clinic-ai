@@ -66,7 +66,7 @@ const registerPatient = async (req, res) => {
 
     await patient.populate('assignedDoctor', 'name');
 
-    const patientPageUrl = `${process.env.FRONTEND_URL}/patient/${patient._id}`;
+    const patientPageUrl = `${process.env.FRONTEND_URL || 'https://smart-clinic-ai-icju.vercel.app'}/patient/${patient._id}`;
     const qrCodeDataUrl = await QRCode.toDataURL(patientPageUrl);
 
     if (assignedDoctor) {
